@@ -1,13 +1,6 @@
-"""
-Ollama client.
-
-Responsible for communicating with the Ollama HTTP API.
-
-No other module should use requests directly.
-"""
-
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import requests
@@ -54,7 +47,7 @@ class OllamaClient(LLMProvider):
         return self._base_url
 
     # ---------------------------------------------------------
-    # Chat
+    # Chat (Existing)
     # ---------------------------------------------------------
 
     def chat(
@@ -77,6 +70,68 @@ class OllamaClient(LLMProvider):
             "/api/chat",
             payload,
         )
+
+    # ---------------------------------------------------------
+    # Streaming Chat (NEW)
+    # ---------------------------------------------------------
+
+    def chat_stream(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+    ):
+        """
+        Stream chat responses from Ollama.
+
+        Yields individual JSON objects exactly as Ollama sends them.
+        """
+
+        payload = {
+            "model": self._model,
+            "messages": messages,
+            "stream": True,
+        }
+
+        if tools:
+            payload["tools"] = tools
+
+        url = f"{self._base_url}/api/chat"
+
+        try:
+
+            response = requests.post(
+                url,
+                json=payload,
+                stream=True,
+                timeout=600,
+            )
+
+        except requests.exceptions.ConnectionError as exc:
+
+            raise OllamaConnectionError(
+                f"Unable to connect to Ollama at {self._base_url}"
+            ) from exc
+
+        if response.status_code == 404:
+
+            raise ModelNotFoundError(
+                f"Model '{self._model}' was not found.\n"
+                f"Run:\n\n"
+                f"ollama pull {self._model}"
+            )
+
+        response.raise_for_status()
+
+        for line in response.iter_lines():
+
+            if not line:
+                continue
+
+            try:
+                yield json.loads(line)
+
+            except json.JSONDecodeError:
+                continue
 
     # ---------------------------------------------------------
     # Models

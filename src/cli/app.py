@@ -9,7 +9,6 @@ from .commands import CommandHandler
 from .ui import (
     prompt,
     render_home,
-    print_assistant,
     print_error,
 )
 
@@ -66,10 +65,14 @@ class CLIApplication:
                     if handled:
                         continue
 
-                response = self.agent.chat(user_input)
+                print()
+                print("ocode › ", end="", flush=True)
 
-                if response.strip():
-                    print_assistant(response)
+                for chunk in self.agent.chat_stream(user_input):
+                    print(chunk, end="", flush=True)
+
+                print()
+                print()
 
             except SystemExit:
                 raise
