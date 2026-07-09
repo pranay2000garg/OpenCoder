@@ -5,46 +5,49 @@ OpenCoder entry point.
 from __future__ import annotations
 
 import argparse
+import os
 
 from .cli.app import CLIApplication
 
 
 DEFAULT_MODEL = "qwen2.5-coder:7b"
-DEFAULT_HOST = "http://localhost:11434"
+DEFAULT_SERVER = "http://localhost:11434"
+
+
+def clear_terminal() -> None:
+    """
+    Clear the terminal screen.
+    """
+
+    os.system("cls" if os.name == "nt" else "clear")
 
 
 def build_parser() -> argparse.ArgumentParser:
     """
-    Create the command line argument parser.
+    Build the command-line argument parser.
     """
 
     parser = argparse.ArgumentParser(
         prog="ocode",
-        description="OpenCoder - Local AI Coding Assistant",
+        description="OpenCoder CLI",
     )
 
     parser.add_argument(
         "--model",
         default=DEFAULT_MODEL,
-        help="Ollama model to use.",
+        help="Model name",
     )
 
     parser.add_argument(
-        "--host",
-        default=DEFAULT_HOST,
-        help="Ollama server URL.",
+        "--server",
+        default=DEFAULT_SERVER,
+        help="Ollama server URL",
     )
 
     parser.add_argument(
-        "--chat",
+        "--no-tools",
         action="store_true",
-        help="Disable tool usage.",
-    )
-
-    parser.add_argument(
-        "--yolo",
-        action="store_true",
-        help="Automatically approve tool actions.",
+        help="Disable tool usage",
     )
 
     return parser
@@ -56,15 +59,12 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    if args.yolo:
-        from .tools.approval import approval
-
-        approval.set_auto_approve(True)
+    clear_terminal()
 
     app = CLIApplication(
         model=args.model,
-        base_url=args.host,
-        use_tools=not args.chat,
+        base_url=args.server,
+        use_tools=not args.no_tools,
     )
 
     app.run()

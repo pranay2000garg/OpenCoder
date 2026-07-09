@@ -1,11 +1,12 @@
 """
-Main REPL application.
+Main CLI application.
 """
 
 from __future__ import annotations
 
 from ..core.agent import Agent
 from .commands import CommandHandler
+from .renderer import Renderer
 from .ui import (
     prompt,
     render_home,
@@ -31,7 +32,11 @@ class CLIApplication:
             use_tools=use_tools,
         )
 
-        self.commands = CommandHandler(self.agent)
+        self.renderer = Renderer()
+
+        self.commands = CommandHandler(
+            self.agent,
+        )
 
     # ---------------------------------------------------------
     # Main Loop
@@ -41,42 +46,55 @@ class CLIApplication:
 
         render_home(self.agent)
 
-        while True:
+        self.renderer.start()
 
-            try:
+        try:
 
-                user_input = prompt().strip()
+            while True:
 
-            except (EOFError, KeyboardInterrupt):
+                try:
 
-                print()
-                print("Goodbye!")
-                break
+                    user_input = prompt().strip()
 
-            if not user_input:
-                continue
+                except (EOFError, KeyboardInterrupt):
 
-            try:
+                    print()
+                    print("Goodbye!")
+
+                    break
+
+                if not user_input:
+                    continue
+
+                # -----------------------------------------
+                # Commands
+                # -----------------------------------------
 
                 if user_input.startswith("/"):
 
-                    handled = self.commands.execute(user_input)
+                    handled = self.commands.execute(
+                        user_input
+                    )
 
                     if handled:
                         continue
 
-                print()
-                print("ocode › ", end="", flush=True)
+                # -----------------------------------------
+                # Chat
+                # -----------------------------------------
 
-                for chunk in self.agent.chat_stream(user_input):
-                    print(chunk, end="", flush=True)
+                try:
 
-                print()
-                print()
+                    for event in self.agent.chat_events(
+                        user_input
+                    ):
+                    
+                        self.renderer.dispatch(event)
 
-            except SystemExit:
-                raise
+                except Exception as exc:
 
-            except Exception as exc:
+                    print_error(str(exc))
 
-                print_error(str(exc))
+        finally:
+
+            self.renderer.stop()

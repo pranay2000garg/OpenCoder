@@ -1,14 +1,5 @@
 """
 Tool execution engine.
-
-The ToolExecutor is responsible for:
-
-- Looking up tool implementations
-- Executing tools
-- Handling exceptions
-- Returning normalized tool results
-
-The Agent should never execute tools directly.
 """
 
 from __future__ import annotations
@@ -21,45 +12,49 @@ from typing import Any
 from ..tools.registry import TOOL_IMPLS
 
 
-@dataclass
+@dataclass(slots=True)
 class ToolExecutionResult:
     """
-    Normalized result returned by a tool execution.
+    Result of executing a tool.
     """
 
     tool_name: str
-    output: str
     success: bool
+    output: str
     tool_call_id: str | None = None
 
 
 class ToolExecutor:
     """
-    Executes tool calls emitted by the language model.
+    Executes tool calls.
+
+    This class has NO knowledge of the UI.
+    It simply executes tools and returns results.
     """
 
-    def execute(self, tool_call: dict[str, Any]) -> ToolExecutionResult:
-        """
-        Execute a single tool call.
-        """
+    def execute(
+        self,
+        tool_call: dict[str, Any],
+    ) -> ToolExecutionResult:
 
         function = tool_call.get("function", {})
 
-        tool_name = function.get("name")
+        tool_name = function.get("name", "")
 
-        raw_args = function.get("arguments", {})
+        raw_arguments = function.get("arguments", {})
 
         tool_call_id = tool_call.get("id")
 
-        arguments = self._parse_arguments(raw_args)
+        arguments = self._parse_arguments(raw_arguments)
 
         tool = TOOL_IMPLS.get(tool_name)
 
         if tool is None:
+
             return ToolExecutionResult(
                 tool_name=tool_name,
-                output=f"ERROR: Unknown tool '{tool_name}'.",
                 success=False,
+                output=f"Unknown tool: {tool_name}",
                 tool_call_id=tool_call_id,
             )
 
@@ -69,8 +64,8 @@ class ToolExecutor:
 
             return ToolExecutionResult(
                 tool_name=tool_name,
-                output=str(result),
                 success=True,
+                output=str(result),
                 tool_call_id=tool_call_id,
             )
 
@@ -78,8 +73,8 @@ class ToolExecutor:
 
             return ToolExecutionResult(
                 tool_name=tool_name,
-                output=f"ERROR: {exc}",
                 success=False,
+                output=str(exc),
                 tool_call_id=tool_call_id,
             )
 
@@ -87,14 +82,11 @@ class ToolExecutor:
         self,
         tool_calls: list[dict[str, Any]],
     ) -> list[ToolExecutionResult]:
-        """
-        Execute every tool call in order.
-        """
 
-        results = []
+        results: list[ToolExecutionResult] = []
 
-        for call in tool_calls:
-            results.append(self.execute(call))
+        for tool_call in tool_calls:
+            results.append(self.execute(tool_call))
 
         return results
 
@@ -106,15 +98,6 @@ class ToolExecutor:
         self,
         raw: Any,
     ) -> dict[str, Any]:
-        """
-        Ollama models sometimes return arguments as:
-
-        - dict
-        - JSON string
-        - Python literal string
-
-        Normalize everything into a dictionary.
-        """
 
         if isinstance(raw, dict):
             return raw
@@ -128,11 +111,12 @@ class ToolExecutor:
                 return json.loads(raw)
 
             except Exception:
+                pass
 
-                try:
-                    return ast.literal_eval(raw)
+            try:
+                return ast.literal_eval(raw)
 
-                except Exception:
-                    return {}
+            except Exception:
+                pass
 
         return {}
