@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from ..core.agent import Agent
 from .commands import CommandHandler
-from .renderer import Renderer
+from .renderer.renderer import Renderer
 from .ui import (
     prompt,
     render_home,
@@ -46,55 +46,52 @@ class CLIApplication:
 
         render_home(self.agent)
 
-        self.renderer.start()
+        while True:
 
-        try:
+            try:
 
-            while True:
+                user_input = prompt().strip()
 
-                try:
+            except (EOFError, KeyboardInterrupt):
 
-                    user_input = prompt().strip()
+                print()
+                print("Goodbye!")
+                break
 
-                except (EOFError, KeyboardInterrupt):
+            if not user_input:
+                continue
 
-                    print()
-                    print("Goodbye!")
+            # -----------------------------------------
+            # Commands
+            # -----------------------------------------
 
-                    break
+            if user_input.startswith("/"):
 
-                if not user_input:
+                handled = self.commands.execute(
+                    user_input
+                )
+
+                if handled:
                     continue
 
-                # -----------------------------------------
-                # Commands
-                # -----------------------------------------
+            # -----------------------------------------
+            # Chat
+            # -----------------------------------------
 
-                if user_input.startswith("/"):
+            self.renderer.start()
 
-                    handled = self.commands.execute(
-                        user_input
-                    )
+            try:
 
-                    if handled:
-                        continue
+                for event in self.agent.chat_events(
+                    user_input
+                ):
 
-                # -----------------------------------------
-                # Chat
-                # -----------------------------------------
+                    self.renderer.dispatch(event)
 
-                try:
+            except Exception as exc:
 
-                    for event in self.agent.chat_events(
-                        user_input
-                    ):
-                    
-                        self.renderer.dispatch(event)
+                print_error(str(exc))
 
-                except Exception as exc:
+            finally:
 
-                    print_error(str(exc))
-
-        finally:
-
-            self.renderer.stop()
+                self.renderer.stop()
